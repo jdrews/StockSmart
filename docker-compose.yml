@@ -16,4 +16,6 @@ services:
     image: stocksmart
     env_file:
       - config.env
-    restart: unless-stopped
+    # The bot exits after delivering its alert (fire exactly once);
+    # on-failure restarts only on crashes, not on that clean exit
+    restart: on-failure

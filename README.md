@@ -39,13 +39,9 @@ Step-by-step instructions for setting up the project:
    | `EMAIL_ENABLED` | `false` | Set to `true` to also use the legacy Gmail email channel |
    | `USER_AGENT` | Chrome 131 UA | User-Agent used to fetch the product page (Micro Center's Cloudflare challenges headless browsers; plain requests with a browser UA pass) |
 
-   **To find your local Micro Center store number:**
-
-   1. Make sure you have selected a store on www.microcenter.com
-   2. Right-click the page and choose **Inspect**
-   3. Click the double arrow (`>>`) at the top of the DevTools console and select **Application**
-   4. Under **Storage**, click **Cookies**
-   5. In the **Name** column, find `storeSelected` and note its value
+   **To find your local Micro Center store number:** open any product page,
+   select your store, and read the `storeid=` parameter from the URL
+   (e.g. `...?storeid=131` → store `131`).
 
 4. **(Recommended) Set up ntfy.sh push notifications:**
 
@@ -115,29 +111,7 @@ podman pull ghcr.io/jdrews/stocksmart:latest
 podman run --rm -it --env-file config.env ghcr.io/jdrews/stocksmart:latest
 ```
 
-To keep the bot running across reboots, use a Podman Quadlet unit (Podman 4.4+). For the full always-on-host guide, see [`docs/SETUP.md`](docs/SETUP.md):
-
-```bash
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/stocksmart.container <<'EOF'
-[Unit]
-Description=StockSmart Micro Center stock alert
-
-[Container]
-Image=ghcr.io/jdrews/stocksmart:latest
-ContainerName=stocksmart
-EnvironmentFile=%h/stocksmart/config.env
-
-[Service]
-Restart=always
-
-[Install]
-WantedBy=default.target
-EOF
-systemctl --user daemon-reload
-systemctl --user enable --now stocksmart.container
-loginctl enable-linger $USER   # start at boot, no login session needed
-```
+To keep the bot running across reboots, run it as a systemd user service with a [Podman Quadlet unit](docs/SETUP.md#6-run-as-a-service-quadlet) (Podman 4.4+): create `~/.config/systemd/user/stocksmart.container`, then `systemctl --user enable --now stocksmart.container` and `loginctl enable-linger $USER` for boot persistence.
 
 The `docker-compose.yml` file works unchanged via `podman compose up -d --build`.
 
