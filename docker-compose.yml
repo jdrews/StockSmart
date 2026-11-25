@@ -1,0 +1,19 @@
+# StockSmart - configuration is passed via environment variables.
+# `env_file` reads the same KEY=VALUE format as config.env, so your existing
+# config file works as-is. To override a single value without editing the
+# file, use the `environment` block:
+#
+# services:
+#   stocksmart:
+#     ...
+#     environment:
+#       POLL_INTERVAL: "60"
+#
+services:
+  stocksmart:
+    build:
+      context: .
+    image: stocksmart
+    env_file:
+      - config.env
+    restart: unless-stopped

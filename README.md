@@ -35,6 +35,7 @@ Check the stock of a specific Micro Center product. Get an instant push notifica
     | `NTFY_TOPIC` | _(empty)_ | Your ntfy.sh topic for phone push notifications |
     | `NTFY_URL` | `https://ntfy.sh` | Use a self-hosted ntfy server if you like |
     | `EMAIL_ENABLED` | `false` | Set to `true` to also use the legacy Gmail email channel |
+    | `CHROMEDRIVER` | _(empty)_ | Path to a chromedriver binary to use directly (set automatically in the container image) |
 
     <b>To find your local Micro Center Store Number:</b><br>
     1. Make sure you have selected a store on www.microcenter.com<br>
@@ -81,6 +82,23 @@ Check the stock of a specific Micro Center product. Get an instant push notifica
     <br>
 
 <span style="color: limegreen;"><b><u>That's all!</u></span> Run the application with `python MCSA.py` and leave it running in the background. If you shut down the computer, be sure to run it again to get it working again. </b>
+
+## <span style="color: limegreen;">Running in a container</span>
+
+A `Containerfile` is included (works with both Docker and Podman). Configuration is passed as **environment variables** - the standard container mechanism - and the same `config.env` file works as-is:
+
+```bash
+docker build -f Containerfile -t stocksmart .
+docker run --rm -it --env-file config.env stocksmart
+```
+
+Or with Docker Compose (uses `config.env` automatically, restarts on failure):
+
+```bash
+docker compose up -d --build
+```
+
+Configuration precedence: runtime variables (`-e NTFY_TOPIC=...`) > `config.env` > built-in defaults. No configuration is baked into the image.
 
 ### <span style="color: goldenrod;">Future Update Plans</span>
 

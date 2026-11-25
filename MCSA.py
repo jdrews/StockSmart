@@ -39,6 +39,11 @@ NTFY_TOPIC = os.getenv("NTFY_TOPIC", "")
 # Optional: legacy Gmail SMTP email channel
 EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").strip().lower() in ("1", "true", "yes")
 
+# Path to a chromedriver binary. When set, it is used directly instead of
+# downloading one via webdriver-manager (e.g. /usr/bin/chromedriver in the
+# container image).
+CHROMEDRIVER = os.getenv("CHROMEDRIVER", "")
+
 def set_store_cookie(driver):
     # Get the main store page URL so you don't overload the product webpage. Selenium limitation
     driver.get("https://www.microcenter.com")
@@ -183,9 +188,13 @@ def main():
         chrome_options.add_argument("--headless")  # Enable headless mode
         chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
         chrome_options.add_argument("--no-sandbox")  # Fix potential environment issues
+        chrome_options.add_argument("--disable-dev-shm-usage")  # Avoid /dev/shm limits (containers)
 
-        # Set up the WebDriver with the specified options
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+        # Set up the WebDriver with the specified options. Use the system
+        # chromedriver when CHROMEDRIVER is set; otherwise download a matching
+        # one via webdriver-manager.
+        driver_service = Service(CHROMEDRIVER) if CHROMEDRIVER else Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=driver_service, options=chrome_options)
 
         # Call the function to check stock
         check_stock(driver)  # Check stock status once
