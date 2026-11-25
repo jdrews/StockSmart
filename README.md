@@ -1,21 +1,21 @@
-# <span style="color: limegreen;">Micro Center Stock Application (MCSA) v1.0.1</span>
+# <span style="color: limegreen;">Micro Center Stock Application (MCSA) v1.1.0</span>
 
 ###### <i>Licensed with Apache 2.0 - Check the <b>LICENSE</b> file in the main branch for more information</i>
 
-Check the stock of a specific Micro Center product. Optionally, securely link your email to get notified when your selected product is in stock.
+Check the stock of a specific Micro Center product. Get an instant push notification on your phone (via ntfy.sh) when your selected product is in stock. An optional Gmail email channel is also available.
 
 ## <span style="color: limegreen;">Installation</span>
 
-<i>**Note: The default code looks for an AMD Ryzen 7 9800X3D at a Micro Center Store in Dallas, TX</i>
+<i>**Note: The default configuration watches an AMD Ryzen 7 9800X3D at a Micro Center Store in Dallas, TX (store ID 131). Everything is configurable in <b>config.env</b> - no code editing required.**</i>
 
 
 <b>Step-by-step instructions for setting up the project:</b>
     <br>
 1.  <b>Clone the repository:</b>
     ```bash
-    git clone https://github.com/ayoTyler/Micro-Center-Stock-Application.git
+    git clone https://github.com/jdrews/StockSmart.git
     ```
-    *Alternatively: If you choose to download the <b>.zip</b> from GitHub:<br>
+    *Alternatively: If you choose to download the <b>.zip</b> from GitHub:*
     1\. Extract the files to a folder using <i>7zip</i> or <i>WinRAR</i> <br>
     2\. Open the <b>MCSA.py</b> application in a Python-supported IDE. (I recommend <i>PyCharm Community Edition</i>) <br>
     <br>
@@ -23,80 +23,70 @@ Check the stock of a specific Micro Center product. Optionally, securely link yo
     ```bash
     pip install -r requirements.txt
     ```
-    *Alternatively: To use your system's command console/terminal window to install the items listed within the requirements folder:<br>
-    1\. Change directory (cd) to the project folder's location that contains <b>requirements.txt</b> <br>
-    2\. Run the above command<br>
     <br>
-3.  <b>On Line 23 within the code, replace the Store Identification Number with your local Micro Center Store Identification Number:</b>
-    ```python
-    # Line 23
-    'value': 'store number here',
-    ```
+3.  <b>Configure the application by editing <b>config.env</b>:</b>
     <br>
+
+    | Setting | Default | Description |
+    | --- | --- | --- |
+    | `STORE_ID` | `131` (Dallas) | Your local Micro Center store ID |
+    | `PRODUCT_URL` | 9800X3D product page | The product page to watch |
+    | `POLL_INTERVAL` | `120` | Seconds between stock checks |
+    | `NTFY_TOPIC` | _(empty)_ | Your ntfy.sh topic for phone push notifications |
+    | `NTFY_URL` | `https://ntfy.sh` | Use a self-hosted ntfy server if you like |
+    | `EMAIL_ENABLED` | `false` | Set to `true` to also use the legacy Gmail email channel |
+
     <b>To find your local Micro Center Store Number:</b><br>
     1. Make sure you have selected a store on www.microcenter.com<br>
     2. Right-Click the page, choose 'Inspect'<br>
     3. Click the double arrow (>>) at the top of the Inspect Element console and select 'Application'<br>
     4. Under 'Storage', click 'Cookies'<br>
     5. Under the 'Name' column, look for 'storeSelected' and find the appropriate value associated with that cookie.<br>
-    6. Replace the number on Line 23 in the code with the appropriate Store Identification Number as shown in the example below.<br>
-    
-    ```python
-    # Example
-    # Line 23
-    'value': '131',
-    ```
     <br>
-4.  <b>On Line 30 within the code, replace the Product Page URL with your desired product:</b>
-    ```python
-    # Line 30 - Get the product page URL
-    driver.get("https://www.microcenter.com/your-product-url-here")
-    ```
+4.  <b><i>(Recommended)</i> Set up ntfy.sh push notifications:</b>
     <br>
-5.  <b><i>(Optional)</i> Adjust the speed that the program functions:</b>
+    1\. Install the <b>ntfy</b> app on your phone (free on Android and iOS)<br>
+    2\. In the app, tap <b>Subscribe</b> and create a new topic using a <u>long random name</u> (e.g. `xk9m2q7p4w1z8v5t`) - the topic name acts as your private key, so make it hard to guess<br>
+    3\. Put that topic in `config.env` as `NTFY_TOPIC=...`<br>
+    4\. That's it - when the product is in stock, your phone gets a high-priority push notification. Tapping it opens the product page.<br>
     <br>
+5.  <b><i>(Optional)</i> Enable the legacy Gmail email channel:</b>
     <br>
-    Slower Internet = Higher Number (~30)
-    ```python
-    # Line 18 & Line 33 - Wait for the page to load, 
-    # adjust as needed (seconds)
-    time.sleep(30)
-    ```
-    
-    <br>
-    
-    Faster Internet = Lower Number (~5)
-    ```python
-    # Line 18 & Line 33 - Wait for the page to load, 
-    # adjust as needed (seconds)
-    time.sleep(5)
-    ```
-    
-    <br>
-    It is <u>NOT</u> recommended to set the number below 5.
-    <br>
-    <br>
-6.  <b><i>(Optional)</i> When you run the program, follow the instructions in the terminal/run console to securely connect your email to the application.</b><br>
-    <br>
-    When linked, this application sends you an alert email when your desired product is in stock. Otherwise, the program will run normally and notify you via the terminal/run console.<br>
-    <br>
-    <b>To securely link your email, follow the instructions in the terminal/run console or the instructions below:</b><br>
-    1\. Go to myaccount.google.com<br>
-    2\. Search 'App Passwords' and click the respective option<br>
-    3\. In the 'App name' field, enter any title specific to this program<br>
-    4\. Copy and paste the newly generated password into the appropriate fields given to you in the terminal/run console<br>
-    5\. Enter your email<br> 
-    6\. Enter your password<br>
+    1\. Set `EMAIL_ENABLED=true` in `config.env`<br>
+    2\. When the program runs, it will prompt you for your email and a Gmail App Password (credentials are held in memory only and re-entered every run)<br>
+    3\. Go to myaccount.google.com<br>
+    4\. Search 'App Passwords' and click the respective option<br>
+    5\. In the 'App name' field enter any title specific to this program<br>
+    6\. Copy and paste the newly generated password into the prompt<br>
     7\. Expect to receive a test email from yourself confirming that your email is linked with the application<br>
+    <br>
+6.  <b><i>(Optional)</i> Adjust the check speed:</b>
+    <br>
+    Set `POLL_INTERVAL` in `config.env` (seconds between stock checks).
+    <br>
+    <br>
+    Slower Internet = Higher Number (~300)
+    ```
+    # config.env
+    POLL_INTERVAL=300
+    ```
+    <br>
+    Faster Internet = Lower Number (~30)
+    ```
+    # config.env
+    POLL_INTERVAL=30
+    ```
+    <br>
+    It is <u>NOT</u> recommended to set the number below 30, to avoid getting rate-limited or blocked by Micro Center.
+    <br>
 
-<span style="color: limegreen;"><b><u>That's all!</u></span> Leave the program running in the background. If you shut down the computer, be sure to run through the steps again to get it working again. </b>
+<span style="color: limegreen;"><b><u>That's all!</u></span> Run the application with `python MCSA.py` and leave it running in the background. If you shut down the computer, be sure to run it again to get it working again. </b>
 
 ### <span style="color: goldenrod;">Future Update Plans</span>
 
-1.  Show and email the amount in stock<br>
-2.  GUI window<br>
-3.  Multiple Micro Center stores listed - no code-changing required<br>
-4.  Works for other websites<br>
+1.  Show and send the amount in stock
+2.  GUI window
+3.  Works for other websites
 
 
 ### <span style="color: darkturquoise;">If this program helped you, buy me a coffee :)</span><br>

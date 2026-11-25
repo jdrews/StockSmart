@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import smtplib
+import requests
 from dotenv import load_dotenv
 from selenium import webdriver
 from email.mime.text import MIMEText
@@ -10,30 +11,53 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
+# Load configuration. .venv/config.env takes precedence over the repo-root
+# config.env, so keep machine-specific values (like email credentials) in
+# .venv/config.env where they won't be committed to git.
+load_dotenv("config.env")
+load_dotenv(".venv/config.env", override=True)
+
+# --- Configuration (override via config.env) ---
+
+# Micro Center store ID. Default: 131 (Dallas store). See README for how to
+# find your store's ID.
+STORE_ID = os.getenv("STORE_ID", "131")
+
+# Product page URL to watch
+PRODUCT_URL = os.getenv(
+    "PRODUCT_URL",
+    "https://www.microcenter.com/product/687907/amd-ryzen-7-9800x3d-granite-ridge-am5-470ghz-8-core-boxed-processor-heatsink-not-included",
+)
+
+# Seconds between stock checks
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "120"))
+
+# ntfy.sh push notifications (recommended channel - see README for setup)
+NTFY_URL = os.getenv("NTFY_URL", "https://ntfy.sh")
+NTFY_TOPIC = os.getenv("NTFY_TOPIC", "")
+
+# Optional: legacy Gmail SMTP email channel
+EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").strip().lower() in ("1", "true", "yes")
+
 def set_store_cookie(driver):
     # Get the main store page URL so you don't overload the product webpage. Selenium limitation
     driver.get("https://www.microcenter.com")
 
-    # Wait for the page to load, adjust as needed (seconds)
-    time.sleep(0)
-
-    # Set the storeSelected cookie. Default: 131 (Dallas store)
+    # Set the storeSelected cookie
     driver.add_cookie({
         'name': 'storeSelected',
-        'value': '131',
+        'value': STORE_ID,
         'domain': '.microcenter.com',
         'path': '/',
         'secure': True,
         'httpOnly': False
     })
     # Get the product page URL
-    driver.get("https://www.microcenter.com/product/687907/amd-ryzen-7-9800x3d-granite-ridge-am5-470ghz-8-core-boxed-processor-heatsink-not-included")
-
-    # Wait for the page to load, adjust as needed (seconds)
-    time.sleep(0)
+    driver.get(PRODUCT_URL)
 
 def prompt():
-    # Prompts the user for email and password securely
+    # Prompts the user for email and password securely (only used when the
+    # email channel is enabled)
     print("Security Disclaimer:\n"
           "Your personal information can only be accessed by a system administrator while the program is running.\n"
           "This information cannot be accessed by outside users and is immediately deleted upon the end of program runtime.\n"
@@ -48,39 +72,28 @@ def prompt():
     os.environ["email"] = input("Enter your email: ")
     os.environ["password"] = input("Enter your password: ")
 
-def test_email():
-    # Send the test email
+def send_ntfy(message):
+    # Push the alert to your phone via ntfy.sh (see README for setup)
     try:
-        # Get the environment variables
-        email_user = os.getenv("email")
-        email_password = os.getenv("password")
-
-        # Confirm whether email credentials were entered
-        if not email_user or not email_password:
-            raise Exception("Test email credentials not found")
-
-        # Set up the email
-        msg = MIMEMultipart()
-        msg['From'] = email_user
-        msg['To'] = email_user
-        msg['Subject'] = 'Test Email Successful'
-        msg.attach(MIMEText('This is a test email to confirm that your email login is correctly working alongside SMTP within the Microcenter Stock Python Application.\n\n'
-                            'You may now let the application run in the background while it actively checks stock of your selected Microcenter product.','plain'))
-
-        # Connect to the email server and send the email
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(email_user, email_password)
-            server.sendmail(email_user, email_user, msg.as_string())
-
-        print("Test email sent successfully!")
-
-    # Test email exception
+        response = requests.post(
+            f"{NTFY_URL.rstrip('/')}/{NTFY_TOPIC}",
+            data=message.encode("utf-8"),
+            headers={
+                "Title": "Micro Center Stock Alert",
+                "Priority": "high",
+                "Tags": "rotating_light",
+                "Click": PRODUCT_URL,  # Tapping the notification opens the product page
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        print("ntfy notification sent!")
+        return True
     except Exception as e:
-        print(f"Failed to send test email: {e}")
-        print("Application will continue without user email")
+        print(f"Failed to send ntfy notification: {e}")
+        return False
 
-def send_email():
+def send_email(subject, body):
     try:
         # Get the environment variables
         email_user = os.getenv("email")
@@ -94,8 +107,8 @@ def send_email():
         msg = MIMEMultipart()
         msg['From'] = email_user
         msg['To'] = email_user
-        msg['Subject'] = 'Your Microcenter Product is Now In Stock'
-        msg.attach(MIMEText('Your product is in stock. Reserve it online or head to the store to get it while supplies last.','plain'))
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
 
         # Connect to the email server and send the email
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
@@ -104,39 +117,65 @@ def send_email():
             server.sendmail(email_user, email_user, msg.as_string())
 
         print("Email sent successfully!")
-
-    # Test email exception
+        return True
+    # Email exception
     except Exception as e:
         print(f"Failed to send email: {e}")
+        return False
+
+def test_email():
+    # Send a test email to confirm the email channel is working
+    send_email(
+        'Test Email Successful',
+        'This is a test email to confirm that your email login is correctly working alongside SMTP within the Microcenter Stock Python Application.\n\n'
+        'You may now let the application run in the background while it actively checks stock of your selected Microcenter product.',
+    )
+
+def notify(subject, body):
+    # Deliver the alert through every configured channel (ntfy push, optional
+    # email). Falls back to the console if no channel is configured or every
+    # send fails.
+    delivered = False
+    if NTFY_TOPIC:
+        delivered = send_ntfy(f"{subject}\n{body}") or delivered
+    if EMAIL_ENABLED:
+        delivered = send_email(subject, body) or delivered
+    if not delivered:
+        print(f"[No notification delivered - console only] {subject}: {body}")
+    return delivered
 
 def check_stock(driver):
-    # Set the store cookie to Dallas (storeSelected: 131)
+    # Set the store cookie
     set_store_cookie(driver)
 
     # Get the page source (HTML)
     page_source = driver.page_source
 
-    # Search for 'inStock': 'False' in the page source
+    # Search for 'inStock':'True' in the page source
     if "'inStock':'True'" in page_source:
         print("In Stock!")
-        send_email()
+        notify(
+            "In Stock!",
+            "Your Micro Center product is now in stock. Reserve it online or head to the store to get it while supplies last.",
+        )
         driver.quit()  # Close the browser
         sys.exit()
     else:
         print("Out of Stock!")
 
 def main():
-    # Enter email and password
-    prompt()
+    # Enter email and password (only needed when the email channel is enabled)
+    if EMAIL_ENABLED:
+        prompt()
 
-    # Specify the config.env path
-    config_path = ".venv/config.env"
+        # Test email
+        test_email()
 
-    # Load email credentials from the config.env file
-    load_dotenv(config_path)
-
-    # Test email
-    test_email()
+    # Sanity-check the notification configuration
+    if not NTFY_TOPIC and not EMAIL_ENABLED:
+        print("Warning: no notification channel configured.")
+        print("Set NTFY_TOPIC in config.env for phone push notifications (recommended).")
+        print("Alerts will only be printed to the console.")
 
     while True:
         # Set up Chrome options to enable headless mode
@@ -150,6 +189,7 @@ def main():
 
         # Call the function to check stock
         check_stock(driver)  # Check stock status once
-        time.sleep(300) # Change the number to check stock sooner/faster (seconds). Default: checks stock every ~5 minutes
+        time.sleep(POLL_INTERVAL)  # Seconds between stock checks (see POLL_INTERVAL in config.env)
 
-main()
+if __name__ == "__main__":
+    main()
