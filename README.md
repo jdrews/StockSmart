@@ -111,6 +111,26 @@ docker run --rm -it --env-file config.env ghcr.io/jdrews/stocksmart:latest
 
 Available tags: `latest` and `main` (every push to main), the git SHA, and `vX.Y.Z` / `vX.Y` from version tags.
 
+#### <i>Podman</i>
+
+The same image and flags work with Podman (it is daemonless and runs rootless - no `dockerd` needed):
+
+```bash
+podman pull ghcr.io/jdrews/stocksmart:latest
+podman run --rm -it --env-file config.env ghcr.io/jdrews/stocksmart:latest
+```
+
+To keep the bot running across reboots, generate a systemd user unit from the running container:
+
+```bash
+podman run -d --name stocksmart --env-file config.env ghcr.io/jdrews/stocksmart:latest
+podman generate systemd --new --name stocksmart > ~/.config/systemd/user/stocksmart.service
+systemctl --user daemon-reload
+systemctl --user enable --now stocksmart
+```
+
+The `docker-compose.yml` file works unchanged via `podman compose up -d --build`. If headless Chromium ever fails to start under rootless Podman, add `--security-opt seccomp=unconfined` to the run command.
+
 ### <span style="color: goldenrod;">Future Update Plans</span>
 
 1.  Show and send the amount in stock
