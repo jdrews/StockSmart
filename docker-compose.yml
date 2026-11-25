@@ -8,6 +8,11 @@
 #     ...
 #     environment:
 #       POLL_INTERVAL: "60"
+#       STORE_IDS: "131,145"
+#
+# One container watches one product at every store in STORE_IDS. Running one
+# container per product (each with its own env file) is how you watch several
+# products, since the bot exits after delivering its first alert.
 #
 services:
   stocksmart:

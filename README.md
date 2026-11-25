@@ -31,24 +31,36 @@ Step-by-step instructions for setting up the project:
 
    | Setting | Default | Description |
    | --- | --- | --- |
-   | `STORE_ID` | `131` (Dallas) | Your local Micro Center store ID |
+   | `STORE_IDS` | `131` (Dallas) | Comma-separated Micro Center store IDs to watch (e.g. `131,145`) |
    | `PRODUCT_URL` | 9800X3D product page | The product page to watch |
    | `POLL_INTERVAL` | `120` | Seconds between stock checks |
+   | `STORE_CHECK_DELAY` | `5` | Seconds between the per-store page fetches inside one check |
    | `NTFY_TOPIC` | _(empty)_ | Your ntfy.sh topic for phone push notifications |
    | `NTFY_URL` | `https://ntfy.sh` | Use a self-hosted ntfy server if you like |
    | `EMAIL_ENABLED` | `false` | Set to `true` to also use the legacy Gmail email channel |
    | `USER_AGENT` | Chrome 131 UA | User-Agent used to fetch the product page (Micro Center's Cloudflare challenges headless browsers; plain requests with a browser UA pass) |
 
-   **To find your local Micro Center store number:** open any product page,
-   select your store, and read the `storeid=` parameter from the URL
-   (e.g. `...?storeid=131` → store `131`).
+   **To find your local Micro Center store number:** open any product page and
+   click the **store icon** at the top of the page (next to the name of your
+   current store, e.g. "Denver"). In the **Your Store** box that opens, select
+   your store from the dropdown of `State - City` entries (e.g.
+   `CO - Denver`). The address bar URL now ends in a `storeid=` parameter —
+   that number is the store ID (e.g. `...?storeid=181` → store `181`). The
+   parameter is only added *after* you select a store, so copy the URL right
+   after choosing. Repeat for each store you want to watch.
+
+   **To watch more than one store,** list them all in `STORE_IDS`
+   (`STORE_IDS=131,145,203`). Each check fetches the product page once per
+   store, and when any store has stock you get a single notification naming
+   every store that does. More stores means more requests per poll, so raise
+   `POLL_INTERVAL` accordingly.
 
 4. **(Recommended) Set up ntfy.sh push notifications:**
 
    1. Install the **ntfy** app on your phone (free on Android and iOS)
    2. In the app, tap **Subscribe** and create a new topic using a **long random name** (e.g. `xk9m2q7p4w1z8v5t`) — the topic name acts as your private key, so make it hard to guess
    3. Put that topic in `config.env` as `NTFY_TOPIC=...`
-   4. That's it — when the product is in stock, your phone gets a high-priority push notification, and tapping it opens the product page
+   4. That's it — when the product is in stock, your phone gets a high-priority push notification, and tapping it opens the product page at the in-stock store
 
 5. **(Optional) Enable the legacy Gmail email channel:**
 
@@ -68,7 +80,7 @@ Step-by-step instructions for setting up the project:
    POLL_INTERVAL=30    # faster internet = lower number
    ```
 
-   Do **not** set the number below 30, to avoid getting rate-limited or blocked by Micro Center.
+   Do **not** set the number below 30, to avoid getting rate-limited or blocked by Micro Center. Each store in `STORE_IDS` is its own page fetch, spaced by `STORE_CHECK_DELAY`, so with several stores keep `POLL_INTERVAL` generous.
 
 **That's all!** Run the application with `python MCSA.py` and leave it running in the background. If you shut down the computer, run it again to resume watching.
 
