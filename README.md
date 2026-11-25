@@ -35,7 +35,7 @@ Check the stock of a specific Micro Center product. Get an instant push notifica
     | `NTFY_TOPIC` | _(empty)_ | Your ntfy.sh topic for phone push notifications |
     | `NTFY_URL` | `https://ntfy.sh` | Use a self-hosted ntfy server if you like |
     | `EMAIL_ENABLED` | `false` | Set to `true` to also use the legacy Gmail email channel |
-    | `CHROMEDRIVER` | _(empty)_ | Path to a chromedriver binary to use directly (set automatically in the container image) |
+    | `USER_AGENT` | Chrome 131 UA | User-Agent used to fetch the product page (Micro Center's Cloudflare challenges headless browsers; plain requests with a browser UA pass) |
 
     <b>To find your local Micro Center Store Number:</b><br>
     1. Make sure you have selected a store on www.microcenter.com<br>
@@ -85,6 +85,8 @@ Check the stock of a specific Micro Center product. Get an instant push notifica
 
 ## <span style="color: limegreen;">Running in a container</span>
 
+For the full guide to running this as a service on an always-on host (ntfy setup, Quadlet, day-2 operations, troubleshooting), see [`docs/SETUP.md`](docs/SETUP.md).
+
 A `Containerfile` is included (works with both Docker and Podman). Configuration is passed as **environment variables** - the standard container mechanism - and the same `config.env` file works as-is:
 
 ```bash
@@ -120,16 +122,31 @@ podman pull ghcr.io/jdrews/stocksmart:latest
 podman run --rm -it --env-file config.env ghcr.io/jdrews/stocksmart:latest
 ```
 
-To keep the bot running across reboots, generate a systemd user unit from the running container:
+To keep the bot running across reboots, use a Podman Quadlet unit (Podman 4.4+). For the full always-on-host guide, see [`docs/SETUP.md`](docs/SETUP.md):
 
 ```bash
-podman run -d --name stocksmart --env-file config.env ghcr.io/jdrews/stocksmart:latest
-podman generate systemd --new --name stocksmart > ~/.config/systemd/user/stocksmart.service
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/stocksmart.container <<'EOF'
+[Unit]
+Description=StockSmart Micro Center stock alert
+
+[Container]
+Image=ghcr.io/jdrews/stocksmart:latest
+ContainerName=stocksmart
+EnvironmentFile=%h/stocksmart/config.env
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
+EOF
 systemctl --user daemon-reload
-systemctl --user enable --now stocksmart
+systemctl --user enable --now stocksmart.container
+loginctl enable-linger $USER   # start at boot, no login session needed
 ```
 
-The `docker-compose.yml` file works unchanged via `podman compose up -d --build`. If headless Chromium ever fails to start under rootless Podman, add `--security-opt seccomp=unconfined` to the run command.
+The `docker-compose.yml` file works unchanged via `podman compose up -d --build`.
 
 ### <span style="color: goldenrod;">Future Update Plans</span>
 

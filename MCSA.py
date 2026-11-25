@@ -3,13 +3,9 @@ import sys
 import time
 import smtplib
 import requests
-from dotenv import load_dotenv
-from selenium import webdriver
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
+from dotenv import load_dotenv
 
 # Load configuration. .venv/config.env takes precedence over the repo-root
 # config.env, so keep machine-specific values (like email credentials) in
@@ -39,26 +35,13 @@ NTFY_TOPIC = os.getenv("NTFY_TOPIC", "")
 # Optional: legacy Gmail SMTP email channel
 EMAIL_ENABLED = os.getenv("EMAIL_ENABLED", "false").strip().lower() in ("1", "true", "yes")
 
-# Path to a chromedriver binary. When set, it is used directly instead of
-# downloading one via webdriver-manager (e.g. /usr/bin/chromedriver in the
-# container image).
-CHROMEDRIVER = os.getenv("CHROMEDRIVER", "")
-
-def set_store_cookie(driver):
-    # Get the main store page URL so you don't overload the product webpage. Selenium limitation
-    driver.get("https://www.microcenter.com")
-
-    # Set the storeSelected cookie
-    driver.add_cookie({
-        'name': 'storeSelected',
-        'value': STORE_ID,
-        'domain': '.microcenter.com',
-        'path': '/',
-        'secure': True,
-        'httpOnly': False
-    })
-    # Get the product page URL
-    driver.get(PRODUCT_URL)
+# Browser User-Agent for the product page request. Micro Center's Cloudflare
+# protection challenges headless browsers, while plain HTTP requests with a
+# normal browser User-Agent pass through.
+USER_AGENT = os.getenv(
+    "USER_AGENT",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+)
 
 def prompt():
     # Prompts the user for email and password securely (only used when the
@@ -149,24 +132,37 @@ def notify(subject, body):
         print(f"[No notification delivered - console only] {subject}: {body}")
     return delivered
 
-def check_stock(driver):
-    # Set the store cookie
-    set_store_cookie(driver)
+def check_stock():
+    # Fetch the product page as a normal browser request and read the stock
+    # status for the selected store from the embedded page data.
+    response = requests.get(
+        PRODUCT_URL,
+        headers={
+            "User-Agent": USER_AGENT,
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        cookies={"storeSelected": STORE_ID},
+        timeout=30,
+    )
+    response.raise_for_status()
+    page = response.text
 
-    # Get the page source (HTML)
-    page_source = driver.page_source
+    # Distinguish a Cloudflare block from a genuine "Out of Stock"
+    if "Attention Required" in page or "cf-chl" in page:
+        print("Warning: Cloudflare challenge page received - skipping this check.")
+        return False
 
     # Search for 'inStock':'True' in the page source
-    if "'inStock':'True'" in page_source:
+    if "'inStock':'True'" in page:
         print("In Stock!")
         notify(
             "In Stock!",
             "Your Micro Center product is now in stock. Reserve it online or head to the store to get it while supplies last.",
         )
-        driver.quit()  # Close the browser
-        sys.exit()
-    else:
-        print("Out of Stock!")
+        return True
+    print("Out of Stock!")
+    return False
 
 def main():
     # Enter email and password (only needed when the email channel is enabled)
@@ -183,21 +179,11 @@ def main():
         print("Alerts will only be printed to the console.")
 
     while True:
-        # Set up Chrome options to enable headless mode
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")  # Enable headless mode
-        chrome_options.add_argument("--disable-gpu")  # Disable GPU acceleration
-        chrome_options.add_argument("--no-sandbox")  # Fix potential environment issues
-        chrome_options.add_argument("--disable-dev-shm-usage")  # Avoid /dev/shm limits (containers)
-
-        # Set up the WebDriver with the specified options. Use the system
-        # chromedriver when CHROMEDRIVER is set; otherwise download a matching
-        # one via webdriver-manager.
-        driver_service = Service(CHROMEDRIVER) if CHROMEDRIVER else Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=driver_service, options=chrome_options)
-
-        # Call the function to check stock
-        check_stock(driver)  # Check stock status once
+        try:
+            if check_stock():
+                sys.exit()  # Notified; done watching
+        except Exception as e:
+            print(f"Stock check failed: {e}")
         time.sleep(POLL_INTERVAL)  # Seconds between stock checks (see POLL_INTERVAL in config.env)
 
 if __name__ == "__main__":
