@@ -100,6 +100,17 @@ docker compose up -d --build
 
 Configuration precedence: runtime variables (`-e NTFY_TOPIC=...`) > `config.env` > built-in defaults. No configuration is baked into the image.
 
+#### <i>Published image</i>
+
+Every push to `main` (and every `v*` tag) publishes the image to GitHub Container Registry via GitHub Actions - you can pull it instead of building:
+
+```bash
+docker pull ghcr.io/jdrews/stocksmart:latest
+docker run --rm -it --env-file config.env ghcr.io/jdrews/stocksmart:latest
+```
+
+Available tags: `latest` and `main` (every push to main), the git SHA, and `vX.Y.Z` / `vX.Y` from version tags.
+
 ### <span style="color: goldenrod;">Future Update Plans</span>
 
 1.  Show and send the amount in stock
